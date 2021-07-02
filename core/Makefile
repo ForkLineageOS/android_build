@@ -2077,6 +2077,8 @@ else
 recovery_wipe :=
 endif
 
+
+
 # Traditionally with non-A/B OTA we have:
 #   boot.img + recovery-from-boot.p + recovery-resource.dat = recovery.img.
 # recovery-resource.dat is needed only if we carry an imgdiff patch of the boot and recovery images
@@ -2234,9 +2236,18 @@ $(recovery_uncompressed_ramdisk): $(MKBOOTFS) \
 	$(if $(strip $(recovery_wipe)), \
 	  cp -f $(recovery_wipe) $(TARGET_RECOVERY_ROOT_OUT)/system/etc/recovery.wipe)
 	ln -sf prop.default $(TARGET_RECOVERY_ROOT_OUT)/default.prop
+	ifneq ($(TARGET_PREBUILT_RECOVERY_RAMDISK),)
+	rm -rf $(PRODUCT_OUT)/prebuilt_recovery
+	mkdir -p $(PRODUCT_OUT)/prebuilt_recovery
+	unzip -o $(TARGET_PREBUILT_RECOVERY_RAMDISK) -d $(PRODUCT_OUT)/prebuilt_recovery/
+endif
 	$(BOARD_RECOVERY_IMAGE_PREPARE)
 	@echo ----- Making uncompressed recovery ramdisk ------
+	ifneq ($(TARGET_PREBUILT_RECOVERY_RAMDISK),)
+	$(MKBOOTFS) $(PRODUCT_OUT)/prebuilt_recovery > $@
+else
 	$(MKBOOTFS) $(TARGET_RECOVERY_ROOT_OUT) > $@
+	endif
 
 $(recovery_ramdisk): $(recovery_uncompressed_ramdisk) $(COMPRESSION_COMMAND_DEPS)
 	@echo ----- Making compressed recovery ramdisk ------
@@ -4645,9 +4656,15 @@ $(BUILT_TARGET_FILES_PACKAGE): \
 	$(hide) mkdir -p $(dir $@) $(zip_root)
 ifneq (,$(INSTALLED_RECOVERYIMAGE_TARGET)$(filter true,$(BOARD_USES_RECOVERY_AS_BOOT)))
 	@# Components of the recovery image
+	ifneq ($(TARGET_PREBUILT_RECOVERY_RAMDISK),)
+	$(hide) mkdir -p $(zip_root)/$(PRIVATE_RECOVERY_OUT)
+	$(hide) $(call package_files-copy-root, \
+	    $(PRODUCT_OUT)/prebuilt_recovery,$(zip_root)/$(PRIVATE_RECOVERY_OUT)/RAMDISK)
+else
 	$(hide) mkdir -p $(zip_root)/$(PRIVATE_RECOVERY_OUT)
 	$(hide) $(call package_files-copy-root, \
 	    $(TARGET_RECOVERY_ROOT_OUT),$(zip_root)/$(PRIVATE_RECOVERY_OUT)/RAMDISK)
+	    endif
 	@# OTA install helpers
 	$(hide) $(call package_files-copy-root, \
 	    $(PRODUCT_OUT)/install,$(zip_root)/INSTALL)
